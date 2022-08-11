@@ -70,6 +70,7 @@ def t0_port_config_helper(test_obj, is_recreate_bridge=True, is_create_hostIf=Tr
         test_obj.host_intf_table_id = host_intf_table_id
         test_obj.hostif_list = hostif_list
 
+    configer.get_cpu_port_queue()
     test_obj.dev_port_list = dev_port_list
     test_obj.portConfigs = portConfigs
     test_obj.default_trap_group = default_trap_group
@@ -396,26 +397,33 @@ class PortConfiger(object):
 
         # For brcm devices, need to init and setup the ports at once after start the switch.
         retries = 10
-        for num_of_tries in range(retries):
-            all_ports_are_up = True
-            time.sleep(1)
-            for port_id in port_list:
-                port_attr = sai_thrift_get_port_attribute(self.client, port_id, oper_status=True)
-                if port_attr['oper_status'] != SAI_PORT_OPER_STATUS_UP:
-                    all_ports_are_up = False
+        down_port_list = []
+        port_index = 0
+        for port_id in port_list:
+            port_attr = sai_thrift_get_port_attribute(self.client, port_id, oper_status=True)
+            print("Turn up port {}".format(port_index))
+            port_up = True
+            if port_attr['oper_status'] != SAI_PORT_OPER_STATUS_UP:
+                port_up = False
+                for num_of_tries in range(retries):
+                    port_attr = sai_thrift_get_port_attribute(self.client, port_id, oper_status=True)
+                    if port_attr['oper_status'] == SAI_PORT_OPER_STATUS_UP:
+                        port_up = True
+                        break
                     time.sleep(3)
-                    print("port {} is down, status: {}. Reset Admin State.".format(port_id, port_attr['oper_status']))
+                    print("port {} id {} is not up, status: {}. Retry. Reset Admin State.".format(port_index, port_id, port_attr['oper_status']))
                     sai_thrift_set_port_attribute(
                         self.client, 
                         port_oid=port_id, 
                         mtu=self.get_mtu(), 
                         admin_state=True,
                         fec_mode=self.get_fec_mode())
-            if all_ports_are_up:
-                print("Retry {} times turn up port.".format(num_of_tries))
-                break
-        if not all_ports_are_up:
-            print("Not all the ports are up after {} rounds of retries.".format(retries))
+            if not port_up:
+                down_port_list.append(port_index)
+            port_index = port_index + 1
+        if down_port_list:
+            print("Ports {} are  down after retries.".format(down_port_list))
+            
     
         
     def get_fec_mode(self):
@@ -441,6 +449,30 @@ class PortConfiger(object):
             int: mtu number
         '''
         return int(self.config.get('mtu'))
+
+    def get_cpu_port_queue(self):
+
+        attr = sai_thrift_get_switch_attribute(self.client, cpu_port=True)
+        self.test_obj.cpu_port = attr['cpu_port']
+
+        attr = sai_thrift_get_port_attribute(self.client,
+                                             self.test_obj.cpu_port,
+                                             qos_number_of_queues=True)
+        num_queues = attr['qos_number_of_queues']
+        q_list = sai_thrift_object_list_t(count=num_queues)
+        attr = sai_thrift_get_port_attribute(self.client,
+                                             self.test_obj.cpu_port,
+                                             qos_queue_list=q_list)
+        for queue in range(0, num_queues):
+            queue_id = attr['qos_queue_list'].idlist[queue]
+            setattr(self.test_obj, 'cpu_queue%s' % queue, queue_id)
+            q_attr = sai_thrift_get_queue_attribute(
+                self.client,
+                queue_id,
+                port=True,
+                index=True,
+                parent_scheduler_node=True)
+            self.test_obj.assertEqual(queue, q_attr['index'])
 
 
 class PortConfig(object):
