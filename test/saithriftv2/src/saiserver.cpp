@@ -30,9 +30,6 @@ extern "C" {
 #include "switch_sai_rpc_server.h"
 }
 
-
-#define SWITCH_SAI_THRIFT_RPC_SERVER_PORT 9092
-
 sai_switch_api_t* sai_switch_api;
 
 std::map<std::string, std::string> gProfileMap;

@@ -41,7 +41,6 @@ from sai_utils import *
 import sai_thrift.sai_adapter as adapter
 
 ROUTER_MAC = '00:77:66:55:44:00'
-THRIFT_PORT = 9092
 
 SKIP_TEST_NO_RESOURCES_MSG = 'Not enough resources to run test'
 PLATFORM = os.environ.get('PLATFORM')
@@ -113,7 +112,11 @@ class ThriftInterface(BaseTest):
         else:
             server = 'localhost'
 
-        self.transport = TSocket.TSocket(server, THRIFT_PORT)
+        server_port = get_thrift_server_port()
+
+        print("\nEstablishing Rpc connection to %s:%s\n" % (server, server_port))
+
+        self.transport = TSocket.TSocket(server, server_port)
         self.transport = TTransport.TBufferedTransport(self.transport)
         self.protocol = TBinaryProtocol.TBinaryProtocol(self.transport)
 
@@ -1005,7 +1008,14 @@ class MinimalPortVlanConfig(SaiHelperBase):
 
         super(MinimalPortVlanConfig, self).tearDown()
 
+def get_thrift_server_port():
+    if 'SWITCH_SAI_THRIFT_RPC_SERVER_PORT' in os.environ:
+        server_port = os.environ.get('SWITCH_SAI_THRIFT_RPC_SERVER_PORT')
+    else:
+        server_port = 9092
 
+    return server_port
+        
 def get_platform():
     """
     Get the platform token.
