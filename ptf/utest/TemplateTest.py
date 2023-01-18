@@ -11,7 +11,11 @@ import unittest
 """
 Class use to test the template.
 Run command under folder 'meta'
+<<<<<<< HEAD
     perl -Irpc gensairpc.pl --adapter_logger --skip_error=-2
+=======
+    perl -Irpc gensairpc.pl --adapter_logger
+>>>>>>> master
     copy sai_adaptor to ./test/saithriftv2/gen-py/sai
     cd ./test/saithriftv2
     sudo python3 setup.py install
@@ -42,6 +46,11 @@ class TestAdapterLogger(BasicMockedTest):
                                  init_switch=True, 
                                  hardware_access_bus="11:11:11:11:11:11")
         self.check_file_contains(LOG_FILE_PATH, 'hardware_access_bus')
+<<<<<<< HEAD
+=======
+        sai_thrift_get_acl_table_attribute(self.client, acl_table_oid=1, acl_stage=1)
+        self.check_file_contains(LOG_FILE_PATH, 'SAI_ACL_TABLE_ATTR_ACL_STAGE')
+>>>>>>> master
         
     
     def check_file_contains(self, file, content):

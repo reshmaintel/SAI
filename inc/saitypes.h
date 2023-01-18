@@ -1377,6 +1377,9 @@ typedef union _sai_attribute_value_t
 
     /** @validonly meta->attrvaluetype == SAI_ATTR_VALUE_TYPE_JSON */
     sai_json_t json;
+
+    /** @validonly meta->attrvaluetype == SAI_ATTR_VALUE_TYPE_IP_PREFIX_LIST */
+    sai_ip_prefix_list_t ipprefixlist;
 } sai_attribute_value_t;
 
 /**

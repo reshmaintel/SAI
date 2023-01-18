@@ -26,6 +26,9 @@ FDB_MAC_PREFIX = '00:01:01'
 LOCAL_IP_128V6_PREFIX = 'fe80::f68e:38ff:fe16:bc75/128'
 LOCAL_IP_10V6_PREFIX = 'fe80::/10'
 
+#LOOPBACK IP
+LOOPBACK_IPV4 = "10.10.10.10"
+
 # MAC
 ROUTER_MAC = '00:77:66:55:44:00'
 """Route mac address"""
@@ -50,3 +53,9 @@ T1_IPV4_PATTERN = '10.1.{}.{}'
 SERVER_IPV6_PATTERN = 'fc02::{}:{}'
 T0_IPV6_PREFIX = 'fc00:0::{}:{}'
 T1_IPV6_PATTERN = 'fc00:1::{}:{}'
+
+"""Stand for the warm reboot stage"""
+WARM_TEST_REBOOTING = "rebooting"
+WARM_TEST_POST_REBOOT = "post_reboot"
+"""Stand for the shared file with sai_qualify"""
+SONIC_MGMT_SHARED_FILE = '/tmp/warm_reboot'
