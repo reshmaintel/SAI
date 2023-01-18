@@ -63,7 +63,9 @@ WARNINGS = \
 	-Wunreachable-code \
 	-Wunused \
 	-Wvariadic-macros \
-	-Wwrite-strings
+	-Wwrite-strings \
+	-Wno-address \
+	-Wno-dangling-pointer
 
 BINS = doxygen perl dot
 
