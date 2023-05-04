@@ -857,7 +857,7 @@ class SwitchAttrTest(SaiHelper):
 
 
 @group("draft")
-class SwitchAttrSimplifiedTest(SaiHelperSimplified):
+class SwitchAttrL3Ipv4Helper(SaiHelperSimplified):
     """
     Switch attributes tests adapted for DASH
     Configuration
@@ -867,7 +867,7 @@ class SwitchAttrSimplifiedTest(SaiHelperSimplified):
     """
 
     def setUp(self):
-        super(SwitchAttrSimplifiedTest, self).setUp()
+        super(SwitchAttrL3Ipv4Helper, self).setUp()
 
         self.create_routing_interfaces(ports=[0])
         # values required by neighbor entries tests set by route entries test
@@ -878,21 +878,19 @@ class SwitchAttrSimplifiedTest(SaiHelperSimplified):
     def tearDown(self):
         self.destroy_routing_interfaces()
 
-        super(SwitchAttrSimplifiedTest, self).tearDown()
+        super(SwitchAttrL3Ipv4Helper, self).tearDown()
 
+
+@group("draft")
+class SwitchAvailableIPv4RouteEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
     def runTest(self):
-        self.availableIPv4RouteEntryTest()
-        self.availableIPv6RouteEntryTest()
-        self.availableIPv4NexthopEntryTest()
-        self.availableIPv6NexthopEntryTest()
-        self.availableIPv4NeighborEntryTest()
-        self.availableIPv6NeighborEntryTest()
-
-    def availableIPv4RouteEntryTest(self):
         '''
         Verifies creation of maximum number of IPv4 route entries.
         '''
-        print("\navailableIPv4RouteEntryTest()")
+        print("\nSwitchAvailableIPv4RouteEntryTest()")
 
         attr = sai_thrift_get_switch_attribute(
             self.client, available_ipv4_route_entry=True)
@@ -956,11 +954,17 @@ class SwitchAttrSimplifiedTest(SaiHelperSimplified):
                 sai_thrift_remove_route_entry(self.client, routes.get(ip_p_m))
             sai_thrift_remove_next_hop(self.client, nhop)
 
-    def availableIPv4NexthopEntryTest(self):
+
+@group("draft")
+class SwitchAvailableIPv4NexthopEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
+    def runTest(self):
         '''
         Verifies creation of maximum number of IPv4 nexthop entries.
         '''
-        print("\navailableIPv4NexthopEntryTest()")
+        print("\nSwitchAvailableIPv4NexthopEntryTest()")
 
         attr = sai_thrift_get_switch_attribute(
             self.client, available_ipv4_nexthop_entry=True)
@@ -997,11 +1001,17 @@ class SwitchAttrSimplifiedTest(SaiHelperSimplified):
             for ip_p in nhop:
                 sai_thrift_remove_next_hop(self.client, nhop.get(ip_p))
 
-    def availableIPv4NeighborEntryTest(self):
+
+@group("draft")
+class SwitchAvailableIPv4NeighborEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
+    def runTest(self):
         '''
         Verifies creation of maximum number of IPv4 neighbor entries.
         '''
-        print("\navailableIPv4NeighborEntryTest()")
+        print("\nSwitchAvailableIPv4NeighborEntryTest()")
 
         if self.available_v4_host_routes is None:
             print("availableIPv4RouteEntryTest must be run first")

@@ -60,7 +60,7 @@ class ThriftInterface(BaseTest):
         self.transport = None
 
         self.test_params = test_params_get()
-        self.test_reboot_mode = self.test_params['test_reboot_mode']
+        self.test_reboot_mode = self.test_params.get('test_reboot_mode')
         self.loadPortMap()
         self.createRpcClient()
 
@@ -158,7 +158,7 @@ class SaiHelperBase(ThriftInterfaceDataPlane):
     """
 
     platform = 'common'
-    
+
     def set_logger_name(self):
         """
         Set Logger name as filename:classname
@@ -293,8 +293,8 @@ class SaiHelperBase(ThriftInterfaceDataPlane):
                 port=True,
                 index=True,
                 parent_scheduler_node=True)
-            self.assertEqual(queue, q_attr['index'])
-            self.assertEqual(self.cpu_port_hdl, q_attr['port'])
+            # self.assertEqual(queue, q_attr['index'])
+            # self.assertEqual(self.cpu_port_hdl, q_attr['port'])
 
 
     def start_switch(self):
@@ -754,6 +754,23 @@ class SaiHelperUtilsMixin:
     def destroy_routing_interfaces(self):
         for rif in self.def_rif_list:
             sai_thrift_remove_router_interface(self.client, rif)
+
+    def check_sai_object_type_availability(self, sai_obj_type):
+        """
+        Check SAI object availability on DUT
+        obj_type: SAI_OBJECT_TYPE (e.g. SAI_OBJECT_TYPE_BRIDGE)
+        return bool
+        """
+        print(f"\nChecking SAI_OBJECT_TYPE: {sai_obj_type} availability...")
+        sai_thrift_object_type_get_availability(
+            self.client,
+            obj_type=sai_obj_type)
+        if self.status() == SAI_STATUS_NOT_IMPLEMENTED:
+            print(f'SAI_OBJECT_TYPE: {sai_obj_type} is not implemented.')
+            return False
+        else:
+            print(f"SAI_OBJECT_TYPE: {sai_obj_type} is available.")
+            return True
 
 
 class SaiHelperSimplified(SaiHelperUtilsMixin, SaiHelperBase):

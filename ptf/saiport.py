@@ -333,6 +333,319 @@ class PortAttributeTest(SaiHelper):
             number_of_schg)
 
 
+class PortStatsTrafficTest(SaiHelperSimplified):
+    """
+    Configuration
+    +----------+-----------+
+    | port0    | port0_rif |
+    +----------+-----------+
+    | port1    | port1_rif |
+    +----------+-----------+
+
+    Verifies IN/OUT port statistics
+    """
+
+    def runTest(self):
+        print("\n --- STATISTICS BEFORE TRAFFIC --- ")
+        print(f'Ingress port {self.port0} IN statistics')
+        self.print_port_stats(self.port0, self.ingress_attr_ids.values())
+
+        print(f'\nEgress port {self.port1} OUT statistics')
+        self.print_port_stats(self.port1, self.egress_attr_ids.values())
+
+        self.inOutUcastOctetStatsTest()
+        self.inOutDiscardsStatsTest()
+        self.inOutMcastStatsTest()
+        self.inOutBcastStatsTest()
+
+        print("\n --- STATISTICS AFTER TRAFFIC --- ")
+        print(f'Ingress port {self.port0} IN statistics')
+        self.print_port_stats(self.port0, self.ingress_attr_ids.values())
+
+        print(f'\nEgress port {self.port1} OUT statistics')
+        self.print_port_stats(self.port1, self.egress_attr_ids.values())
+
+    def setUp(self):
+        super(PortStatsTrafficTest, self).setUp()
+
+        self.dmac = '00:11:22:33:44:55'
+
+        self.create_routing_interfaces(ports=[0, 1])
+
+        self.nhop = sai_thrift_create_next_hop(
+            self.client,
+            ip=sai_ipaddress('10.10.10.2'),
+            router_interface_id=self.port1_rif,
+            type=SAI_NEXT_HOP_TYPE_IP)
+
+        self.neighbor_entry = sai_thrift_neighbor_entry_t(
+            rif_id=self.port1_rif, ip_address=sai_ipaddress('10.10.10.2'))
+        sai_thrift_create_neighbor_entry(
+            self.client, self.neighbor_entry, dst_mac_address=self.dmac)
+
+        self.route_entry = sai_thrift_route_entry_t(
+            vr_id=self.default_vrf, destination=sai_ipprefix('11.11.11.1/24'))
+        sai_thrift_create_route_entry(
+            self.client, self.route_entry, next_hop_id=self.nhop)
+
+        self.ingress_attr_ids = {"SAI_PORT_STAT_IF_IN_OCTETS": SAI_PORT_STAT_IF_IN_OCTETS,
+                                 "SAI_PORT_STAT_IF_IN_UCAST_PKTS": SAI_PORT_STAT_IF_IN_UCAST_PKTS,
+                                 "SAI_PORT_STAT_IF_IN_MULTICAST_PKTS": SAI_PORT_STAT_IF_IN_MULTICAST_PKTS,
+                                 "SAI_PORT_STAT_IF_IN_BROADCAST_PKTS": SAI_PORT_STAT_IF_IN_BROADCAST_PKTS,
+                                 "SAI_PORT_STAT_IF_IN_DISCARDS": SAI_PORT_STAT_IF_IN_DISCARDS,
+                                 "SAI_PORT_STAT_IF_IN_ERRORS": SAI_PORT_STAT_IF_IN_ERRORS}
+
+        self.egress_attr_ids ={"SAI_PORT_STAT_IF_OUT_OCTETS": SAI_PORT_STAT_IF_OUT_OCTETS,
+                               "SAI_PORT_STAT_IF_OUT_UCAST_PKTS": SAI_PORT_STAT_IF_OUT_UCAST_PKTS,
+                               "SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS": SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS,
+                               "SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS": SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS,
+                               "SAI_PORT_STAT_IF_OUT_DISCARDS": SAI_PORT_STAT_IF_OUT_DISCARDS,
+                               "SAI_PORT_STAT_IF_OUT_ERRORS": SAI_PORT_STAT_IF_OUT_ERRORS}
+
+
+    def tearDown(self):
+        sai_thrift_remove_route_entry(self.client, self.route_entry)
+        sai_thrift_remove_next_hop(self.client, self.nhop)
+        sai_thrift_remove_neighbor_entry(self.client, self.neighbor_entry)
+
+        self.destroy_routing_interfaces()
+
+        super(PortStatsTrafficTest, self).tearDown()
+
+    def print_port_stats(self, port, attr_ids: list):
+        stats = sai_thrift_get_port_stats(self.client, port, attr_ids)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        for attr_name, value in stats.items():
+            print(attr_name, '-', value)
+
+    def verify_port_stat(self, port, attr_name, base_stat, exp_value=0, exp_state='incremented'):
+        """
+        Verifies given port given statistic attribute based on expected state:
+        incremented - current stat is bigger than base stat
+        incremented by - current stat is bigger than base stat by exp_value
+        not incremented - current stat is equal to base stat
+        """
+        attr_ids = {}
+        attr_ids.update(self.ingress_attr_ids)
+        attr_ids.update(self.egress_attr_ids)
+
+        current_stat = sai_thrift_get_port_stats(self.client, port, [attr_ids[attr_name]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        print(f"Verifying {attr_name} statistics...")
+
+        if exp_state == 'incremented':
+            error_msg = f"Statistic error. Expected that, current stat: {current_stat} > base stat: {base_stat}"
+            self.assertTrue(current_stat[attr_name] > base_stat[attr_name], error_msg)
+
+        elif exp_state == 'incremented by':
+            exp_stat = base_stat[attr_name] + exp_value
+            error_msg = f"Statistic error. Expected: {exp_stat}, Actual: {current_stat}"
+            self.assertTrue(exp_stat == current_stat[attr_name], error_msg)
+
+        elif exp_state == 'not incremented':
+            error_msg = f"Statistic error. Expected that, current stat: {current_stat} == base stat: {base_stat}"
+            self.assertTrue(current_stat[attr_name] == base_stat[attr_name], error_msg)
+
+        else:
+            raise ValueError('Incorrect exp_state. Works only with: incremented|incremented by|not incremented')
+
+        print("OK")
+
+    def inOutUcastOctetStatsTest(self):
+        """
+        Verify
+        SAI_PORT_STAT_IF_IN_OCTETS
+        SAI_PORT_STAT_IF_OUT_OCTETS
+        SAI_PORT_STAT_IF_IN_UCAST_PKTS
+        SAI_PORT_STAT_IF_OUT_UCAST_PKTS
+        ports statistics attributes with traffic
+        """
+
+        pkt = simple_tcp_packet(eth_dst=ROUTER_MAC,
+                                eth_src='00:22:22:22:22:22',
+                                ip_dst='11.11.11.2',
+                                ip_src='192.168.0.1',
+                                ip_id=105,
+                                ip_ttl=64)
+        exp_pkt = simple_tcp_packet(eth_dst=self.dmac,
+                                    eth_src=ROUTER_MAC,
+                                    ip_dst='11.11.11.2',
+                                    ip_src='192.168.0.1',
+                                    ip_id=105,
+                                    ip_ttl=64)
+
+        in_octet_base_stat = sai_thrift_get_port_stats(self.client, self.port0,
+                                                       [self.ingress_attr_ids["SAI_PORT_STAT_IF_IN_OCTETS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        out_octet_base_stat = sai_thrift_get_port_stats(self.client, self.port1,
+                                                        [self.egress_attr_ids["SAI_PORT_STAT_IF_OUT_OCTETS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        in_ucast_base_stat = sai_thrift_get_port_stats(self.client, self.port0,
+                                                       [self.ingress_attr_ids["SAI_PORT_STAT_IF_IN_UCAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        out_ucast_base_stat = sai_thrift_get_port_stats(self.client, self.port1,
+                                                        [self.egress_attr_ids["SAI_PORT_STAT_IF_OUT_UCAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        print(f"\nSending tcp unicast packet on port {self.dev_port0}, expect routing on port {self.dev_port1} ...")
+        send_packet(self, self.dev_port0, pkt)
+        verify_packet(self, exp_pkt, self.dev_port1)
+        print("Pkt routing OK\n")
+
+        self.verify_port_stat(self.port0, "SAI_PORT_STAT_IF_IN_OCTETS",
+                              base_stat=in_octet_base_stat, exp_state='incremented')
+        self.verify_port_stat(self.port0, "SAI_PORT_STAT_IF_IN_UCAST_PKTS",
+                              base_stat=in_ucast_base_stat, exp_state='incremented by', exp_value=1)
+
+        self.verify_port_stat(self.port1, "SAI_PORT_STAT_IF_OUT_OCTETS",
+                              base_stat=out_octet_base_stat, exp_state='incremented')
+        self.verify_port_stat(self.port1, "SAI_PORT_STAT_IF_OUT_UCAST_PKTS",
+                              base_stat=out_ucast_base_stat, exp_state='incremented by', exp_value=1)
+
+    def inOutDiscardsStatsTest(self):
+        """
+        Verify
+        SAI_PORT_STAT_IF_IN_DISCARDS
+        SAI_PORT_STAT_IF_OUT_DISCARDS
+        ports statistics attributes with traffic
+        """
+        pkt = simple_tcp_packet(eth_dst="00:11:11:aa:22:33",  # pkt with incorrect DST MAC addr
+                                eth_src='00:22:22:22:22:22',
+                                ip_dst='192.168.1.1',
+                                ip_src='192.168.0.1',
+                                ip_id=105,
+                                ip_ttl=64)
+
+        in_discards_base_stat = sai_thrift_get_port_stats(self.client, self.port0,
+                                                          [self.ingress_attr_ids["SAI_PORT_STAT_IF_IN_DISCARDS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        out_discards_base_stat = sai_thrift_get_port_stats(self.client, self.port1,
+                                                           [self.egress_attr_ids["SAI_PORT_STAT_IF_OUT_DISCARDS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        print(f"\nSending tcp unicast packet on port {self.dev_port0}, expect drop ...")
+        send_packet(self, self.dev_port0, pkt)
+        verify_no_other_packets(self, timeout=1)
+        print("Pkt drop OK\n")
+
+        self.verify_port_stat(self.port0, "SAI_PORT_STAT_IF_IN_DISCARDS",
+                              base_stat=in_discards_base_stat, exp_state='not incremented')
+        self.verify_port_stat(self.port1, "SAI_PORT_STAT_IF_OUT_DISCARDS",
+                              base_stat=out_discards_base_stat, exp_state='not incremented')
+
+    def inOutMcastStatsTest(self):
+        """
+        Verify
+        SAI_PORT_STAT_IF_IN_MULTICAST_PKTS
+        SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS
+        ports statistics attributes with traffic
+        """
+        mcast_pkt = simple_udp_packet(eth_dst='01:00:5e:01:02:03',
+                                      eth_src='00:22:22:22:22:22',
+                                      ip_dst='224.1.2.3',
+                                      ip_src='192.168.0.1',
+                                      ip_id=105,
+                                      ip_ttl=64)
+
+        in_mcast_base_stat =  sai_thrift_get_port_stats(self.client, self.port0,
+                                                        [self.ingress_attr_ids["SAI_PORT_STAT_IF_IN_MULTICAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        out_mcast_base_stat = sai_thrift_get_port_stats(self.client, self.port1,
+                                                        [self.egress_attr_ids["SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        print(f"\nSending mcast packet on port {self.dev_port0}, expect drop ...")
+        send_packet(self, self.dev_port0, mcast_pkt)
+        verify_no_other_packets(self, timeout=1)
+        print("Mcast pkt drop OK\n")
+
+        self.verify_port_stat(self.port0, "SAI_PORT_STAT_IF_IN_MULTICAST_PKTS",
+                              base_stat=in_mcast_base_stat, exp_state='incremented by', exp_value=1)
+        self.verify_port_stat(self.port1, "SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS",
+                              base_stat=out_mcast_base_stat, exp_state='not incremented')
+
+    def inOutBcastStatsTest(self):
+        """
+        Verify
+        SAI_PORT_STAT_IF_IN_BROADCAST_PKTS
+        SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS
+        ports statistics attributes with traffic
+        """
+        bcast_pkt = simple_tcp_packet(eth_dst="ff:ff:ff:ff:ff:ff",
+                                      eth_src='00:22:22:22:22:22',
+                                      ip_dst='255.255.255.255',
+                                      ip_src='192.168.0.1',
+                                      ip_id=105,
+                                      ip_ttl=64)
+
+        in_bcast_base_stat =  sai_thrift_get_port_stats(self.client, self.port0,
+                                                        [self.ingress_attr_ids["SAI_PORT_STAT_IF_IN_BROADCAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        out_bcast_base_stat = sai_thrift_get_port_stats(self.client, self.port1,
+                                                        [self.egress_attr_ids["SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS"]])
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        print(f"\nSending bcast packet on port {self.dev_port0}, expect drop ...")
+        send_packet(self, self.dev_port0, bcast_pkt)
+        verify_no_other_packets(self, timeout=1)
+        print("Bcast pkt drop OK\n")
+
+        self.verify_port_stat(self.port0, "SAI_PORT_STAT_IF_IN_BROADCAST_PKTS",
+                              base_stat=in_bcast_base_stat, exp_state='incremented by', exp_value=1)
+        self.verify_port_stat(self.port1, "SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS",
+                              base_stat=out_bcast_base_stat, exp_state='not incremented')
+
+
+class PortStatesTest(SaiHelperSimplified):
+    """
+    Verifies Port Admin and Oper states
+    """
+
+    def runTest(self):
+        test_ports = [self.port0, self.port1]
+        
+        for test_port in test_ports:
+            print(f"\nVerify that port {test_port} oper status == UP")
+            self.assertIs(self.verify_port_oper_status(test_port, SAI_PORT_OPER_STATUS_UP), True,
+                        f"Port {test_port} oper status is not Up")
+
+            print(f"\nSet port {test_port} admin state DOWN")
+            self.set_port_admin_state(test_port, state=False)
+
+            print(f"\nVerify that port {test_port} oper status == DOWN")
+            self.assertIs(self.verify_port_oper_status(test_port, SAI_PORT_OPER_STATUS_DOWN, interval=2, timeout=15),
+                        True,
+                        f"Port {test_port} oper status is not Down")
+
+            print(f"\nSet port {test_port} admin state UP")
+            self.set_port_admin_state(test_port, state=True)
+
+            print(f"\nVerify that port {test_port} oper status == UP")
+            self.assertIs(self.verify_port_oper_status(test_port, SAI_PORT_OPER_STATUS_UP, interval=2, timeout=60),
+                        True,
+                        f"Port {test_port} oper status is not Up")
+
+    def verify_port_oper_status(self, port, exp_status, interval=1, timeout=5):
+        start = time.time()
+
+        while time.time() - start <= timeout:
+            port_attr = sai_thrift_get_port_attribute(self.client, port,
+                                                      oper_status=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            if port_attr['oper_status'] == exp_status:
+                return True
+
+            time.sleep(interval)
+
+        return False
+
+    def set_port_admin_state(self, port, state):
+        sai_thrift_set_port_attribute(self.client, port, admin_state=state)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+
 @group("draft")
 class ListPortAttributesTest(SaiHelperBase):
     ''' Test list of port attributes '''

@@ -1017,23 +1017,18 @@ class HostifTxTest(SaiHelper):
 
 
 @group("draft")
-class HostifTxSimplifiedTest(SaiHelperSimplified):
+class ArpRxTxHostifTxTest(SaiHelperSimplified):
     """
     Verify hostif TX
-
     No additional configuration needed
     """
 
     def runTest(self):
         # TODO: tests require additional verification
-        self.arpRxTxTest()
-        self.portHostifTxTest()
-
-    def arpRxTxTest(self):
         """
         Verify host interface rx/tx path with ARP packet
         """
-        print("\narpRxTxTest()")
+        print("\nArpRxTxTest()")
 
         test_port = self.port0
         test_dev_port = self.dev_port0
@@ -1120,11 +1115,20 @@ class HostifTxSimplifiedTest(SaiHelperSimplified):
             sai_thrift_remove_hostif_trap(self.client, arp_trap)
             sai_thrift_remove_router_interface(self.client, rif)
 
-    def portHostifTxTest(self):
+
+@group("draft")
+class PortHostifTxTest(SaiHelperSimplified):
+    """
+    Verify hostif TX
+    No additional configuration needed
+    """
+
+    def runTest(self):
+        # TODO: tests require additional verification
         """
         Verify port host interface tx
         """
-        print("\nportHostifTxTest()")
+        print("\nPortHostifTxTest()")
 
         test_port = self.port0
         test_dev_port = self.dev_port0
@@ -2796,23 +2800,17 @@ class HostifUserDefinedTrapTest(SaiHelperSimplified):
 
 
 @group("draft")
-class HostifTrapAttributeGetterTest(SaiHelperSimplified):
+class HostifTrapPriorityGetterTest(SaiHelperSimplified):
     """
     Verify getting of hostif attributes
-
     No additional configuration needed
     """
 
     def runTest(self):
-        self.trapPriorityTest()
-        self.trapTypeTest()
-        self.trapGroupTest()
-        self.trapActionTest()
-
-    def trapPriorityTest(self):
         """
         Verify priority attribute getting
         """
+        print("\nHostifTrapPriorityGetterTest()")
         try:
             custom_priotiy_1 = 11
             lldp_trap = sai_thrift_create_hostif_trap(
@@ -2847,10 +2845,19 @@ class HostifTrapAttributeGetterTest(SaiHelperSimplified):
             sai_thrift_remove_hostif_trap(self.client, dhcp_trap)
             sai_thrift_remove_hostif_trap(self.client, lldp_trap)
 
-    def trapTypeTest(self):
+
+@group("draft")
+class HostifTrapTypeGetterTest(SaiHelperSimplified):
+    """
+    Verify getting of hostif attributes
+    No additional configuration needed
+    """
+
+    def runTest(self):
         """
         Verify type attribute getting
         """
+        print("\nHostifTrapTypeGetterTest()")
         try:
             lldp_trap = sai_thrift_create_hostif_trap(
                 self.client,
@@ -2880,10 +2887,19 @@ class HostifTrapAttributeGetterTest(SaiHelperSimplified):
             sai_thrift_remove_hostif_trap(self.client, lldp_trap)
             sai_thrift_remove_hostif_trap(self.client, dhcp_trap)
 
-    def trapGroupTest(self):
+
+@group("draft")
+class HostifTrapGroupGetterTest(SaiHelperSimplified):
+    """
+    Verify getting of hostif attributes
+    No additional configuration needed
+    """
+
+    def runTest(self):
         """
         Verify group attribute getting
         """
+        print("\nHostifTrapGroupGetterTest()")
         try:
             custom_trap_group = sai_thrift_create_hostif_trap_group(
                 self.client,
@@ -2919,10 +2935,19 @@ class HostifTrapAttributeGetterTest(SaiHelperSimplified):
             sai_thrift_remove_hostif_trap(self.client, dhcp_trap)
             sai_thrift_remove_hostif_trap_group(self.client, custom_trap_group)
 
-    def trapActionTest(self):
+
+@group("draft")
+class HostifTrapActionGetterTest(SaiHelperSimplified):
+    """
+    Verify getting of hostif attributes
+    No additional configuration needed
+    """
+
+    def runTest(self):
         """
         Verify action attribute getting
         """
+        print("\nHostifTrapActionGetterTest()")
         try:
             ip2me_trap = sai_thrift_create_hostif_trap(
                 self.client,

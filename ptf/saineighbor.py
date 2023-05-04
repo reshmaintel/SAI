@@ -166,7 +166,7 @@ class NeighborAttrIpv6Test(SaiHelperSimplified):
 
 
 @group("draft")
-class NeighborAttrIpv4Test(SaiHelperSimplified):
+class NeighborAttrIpv4Helper(SaiHelperSimplified):
     """
     Neighbor entry attributes IPv4 tests class
     Configuration
@@ -177,13 +177,22 @@ class NeighborAttrIpv4Test(SaiHelperSimplified):
     +----------+-----------+
     """
     def setUp(self):
-        super(NeighborAttrIpv4Test, self).setUp()
+        super(NeighborAttrIpv4Helper, self).setUp()
 
         self.create_routing_interfaces(ports=[0, 1])
 
         self.test_rif = self.port0_rif
         self.ipv4_addr = "10.10.10.1"
         self.mac_addr = "00:10:10:10:10:10"
+        self.mac_update_addr = "00:22:22:33:44:66"
+
+        self.nhop = sai_thrift_create_next_hop(self.client,
+                                               ip=sai_ipaddress(self.ipv4_addr),
+                                               router_interface_id=self.port0_rif,
+                                               type=SAI_NEXT_HOP_TYPE_IP)
+        self.route_entry = sai_thrift_route_entry_t(vr_id=self.default_vrf,
+                                                    destination=sai_ipprefix('10.10.10.1/31'))
+        sai_thrift_create_route_entry(self.client, self.route_entry0, next_hop_id=self.nhop)
 
         self.pkt_v4 = simple_udp_packet(eth_dst=ROUTER_MAC,
                                         ip_dst=self.ipv4_addr,
@@ -191,23 +200,32 @@ class NeighborAttrIpv4Test(SaiHelperSimplified):
         self.exp_pkt_v4 = simple_udp_packet(eth_dst=self.mac_addr,
                                             eth_src=ROUTER_MAC,
                                             ip_dst=self.ipv4_addr,
-                                            ip_ttl=63)
-
-    def runTest(self):
-        self.noHostRouteIpv4NeighborTest()
-        self.addHostRouteIpv4NeighborTest()
+                                            ip_ttl=64)
+        self.exp_updt_mac_pkt = simple_udp_packet(eth_dst=self.mac_update_addr,
+                                                  eth_src=ROUTER_MAC,
+                                                  ip_dst=self.ipv4_addr,
+                                                  ip_ttl=64)
 
     def tearDown(self):
         self.destroy_routing_interfaces()
+        
+        sai_thrift_remove_route_entry(self.client, self.route_entry)
+        sai_thrift_remove_next_hop(self.client, self.nhop)
 
-        super(NeighborAttrIpv4Test, self).tearDown()
+        super(NeighborAttrIpv4Helper, self).tearDown()
 
-    def noHostRouteIpv4NeighborTest(self):
+
+@group("draft")
+class NoHostRouteIpv4NeighborTest(NeighborAttrIpv4Helper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
         '''
         Verifies if IPv4 host route is not created according to
         SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE attribute value
         '''
-        print("\nnoHostRouteIpv4NeighborTest()")
+        print("\nNoHostRouteIpv4NeighborTest()")
 
         try:
             nbr_entry_v4 = sai_thrift_neighbor_entry_t(
@@ -228,12 +246,18 @@ class NeighborAttrIpv4Test(SaiHelperSimplified):
         finally:
             sai_thrift_remove_neighbor_entry(self.client, nbr_entry_v4)
 
-    def addHostRouteIpv4NeighborTest(self):
+
+@group("draft")
+class AddHostRouteIpv4NeighborTest(NeighborAttrIpv4Helper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
         '''
         Verifies if IPv4 host route is created according to
         SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE attribute value
         '''
-        print("\naddHostRouteIpv4NeighborTest()")
+        print("\nAddHostRouteIpv4NeighborTest()")
 
         try:
             nbr_entry_v4 = sai_thrift_neighbor_entry_t(
@@ -253,3 +277,53 @@ class NeighborAttrIpv4Test(SaiHelperSimplified):
 
         finally:
             sai_thrift_remove_neighbor_entry(self.client, nbr_entry_v4)
+
+
+class UpdateNeighborEntryAttributeDstMacAddr(NeighborAttrIpv4Helper):
+    '''
+    Verifies if SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS is updated
+    '''
+
+    def setUp(self):
+        super(UpdateNeighborEntryAttributeDstMacAddr, self).setUp()
+
+    def runTest(self):
+        print("\nUpdateNeighborEntryAttributeDstMacAddr()")
+
+        nbr_entry_v4 = sai_thrift_neighbor_entry_t(
+            rif_id=self.test_rif,
+            ip_address=sai_ipaddress(self.ipv4_addr))
+        status = sai_thrift_create_neighbor_entry(
+            self.client,
+            nbr_entry_v4,
+            dst_mac_address=self.mac_addr)
+        self.assertEqual(status, SAI_STATUS_SUCCESS)
+
+        try:
+            print("Sending IPv4 packet before updating the destination mac")
+            send_packet(self, self.dev_port1, self.pkt_v4)
+            verify_packet(self, self.exp_pkt_v4, self.dev_port0)
+            print("Packet forwarded")
+            
+            print(f"Update neighbor to {self.mac_update_addr}")
+            status = sai_thrift_set_neighbor_entry_attribute(
+                self.client,
+                nbr_entry_v4,
+                dst_mac_address=self.mac_update_addr)
+            self.assertEqual(status, SAI_STATUS_SUCCESS)
+
+            attr = sai_thrift_get_neighbor_entry_attribute(
+                self.client, nbr_entry_v4, dst_mac_address=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            self.assertEqual(attr['dst_mac_address'], self.mac_update_addr)
+
+            print("Sending IPv4 packet after updating the destination mac")
+            send_packet(self, self.dev_port1, self.pkt_v4)
+            verify_packet(self, self.exp_updt_mac_pkt, self.dev_port0)
+            print("Packet forwarded")
+
+        finally:
+            sai_thrift_remove_neighbor_entry(self.client, nbr_entry_v4)
+
+    def tearDown(self):
+        super(UpdateNeighborEntryAttributeDstMacAddr, self).tearDown()
