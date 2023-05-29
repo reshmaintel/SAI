@@ -723,17 +723,20 @@ class L3RouteUpdateTest(L3RouteSimplifiedHelper):
             sai_thrift_remove_next_hop(self.client, nhop1)
             sai_thrift_remove_next_hop(self.client, nhop2)
 
-    def emptyECMPGroupTest(self):
-        '''
-        Verify drop on empty ECMP group.
-        '''
-        print("emptyECMPGroupTest")
+
+@group("draft")
+class EmptyECMPGroupTest(L3RouteSimplifiedHelper):
+    '''
+    Verify drop on empty ECMP group.
+    '''
+    def runTest(self):
+        print("EmptyEcmpGroupTest")
 
         nhop_group = sai_thrift_create_next_hop_group(
             self.client, type=SAI_NEXT_HOP_GROUP_TYPE_ECMP)
 
         route_entry = sai_thrift_route_entry_t(
-            vr_id=self.default_vrf, destination=sai_ipprefix('10.10.10.1/32'))
+            vr_id=self.default_vrf, destination=sai_ipprefix('10.10.10.0/24'))
         sai_thrift_create_route_entry(self.client, route_entry,
                                       next_hop_id=nhop_group)
 

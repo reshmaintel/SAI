@@ -333,6 +333,538 @@ class PortAttributeTest(SaiHelper):
             number_of_schg)
 
 
+class PhysicalPortAttributesTest(SaiHelperSimplified):
+    ''' Test  physical port attributes '''
+
+    def setUp(self):
+        print("PhysicalPortAttributesTest setUp")
+        super(PhysicalPortAttributesTest, self).setUp()
+
+
+    def runTest(self):
+        self.portAttributeTest()
+
+    def tearDown(self):
+        print("PhysicalPortAttributesTest tearDown")
+        super(PhysicalPortAttributesTest, self).tearDown()
+
+    def portAttributeTest(self):
+        ''' Test port attributes '''
+        print("portAttributeTest")
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, speed=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.assertNotEqual(attr['speed'], 0)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, speed=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.assertNotEqual(attr['speed'], 0)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, admin_state=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, admin_state=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, auto_neg_mode=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, auto_neg_mode=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, fec_mode=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, fec_mode=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, mtu=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, mtu=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        sai_list = sai_thrift_u32_list_t(count=1, uint32list=[])
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, hw_lane_list=sai_list)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        self.assertEqual(attr['hw_lane_list'].count, 8)
+        self.assertEqual(attr['hw_lane_list'].uint32list[0], 0)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, hw_lane_list=sai_list)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        self.assertEqual(attr['hw_lane_list'].count, 8)
+        self.assertEqual(attr['hw_lane_list'].uint32list[0], 8)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port0, advertised_media_type=True) 
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port1, advertised_media_type=True)
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port0, advertised_auto_neg_mode=True)  # TODO: Add advertised_auto_neg_mode check
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port1, advertised_auto_neg_mode=True)
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port0, advertised_fec_mode=True)  # TODO: Add advertised_fec_mode check
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port1, advertised_fec_mode=True)
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port0, advertised_interface_type=True)  # TODO: Add advertised_interface_type check
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port1, advertised_interface_type=True)
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port0, interface_type=True)  # TODO: Add interface_type check
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        # attr = sai_thrift_get_port_attribute(
+        #     self.client, self.port1, interface_type=True)
+        # self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, oper_speed=True)  # TODO: Add oper_speed check
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)       
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port1, oper_speed=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)    
+
+
+class PhysicalPortTrafficHelper(SaiHelperSimplified):
+
+    def setUp(self):
+        super(PhysicalPortTrafficHelper, self).setUp()
+
+        self.dmac1 = '00:11:22:33:44:55'
+
+        self.create_routing_interfaces(ports=[0, 1])
+
+        self.nhop1 = sai_thrift_create_next_hop(
+            self.client,
+            ip=sai_ipaddress('10.10.10.2'),
+            router_interface_id=self.port0_rif,
+            type=SAI_NEXT_HOP_TYPE_IP)
+        self.neighbor_entry1 = sai_thrift_neighbor_entry_t(
+            rif_id=self.port0_rif, ip_address=sai_ipaddress('10.10.10.2'))
+        sai_thrift_create_neighbor_entry(
+            self.client, self.neighbor_entry1, dst_mac_address=self.dmac1)
+
+        self.route_entry0 = sai_thrift_route_entry_t(
+            vr_id=self.default_vrf, destination=sai_ipprefix('10.10.10.1/32'))
+        sai_thrift_create_route_entry(
+            self.client, self.route_entry0, next_hop_id=self.nhop1)
+
+    def tearDown(self):
+        sai_thrift_remove_route_entry(self.client, self.route_entry0)
+
+        sai_thrift_remove_next_hop(self.client, self.nhop1)
+        sai_thrift_remove_neighbor_entry(self.client, self.neighbor_entry1)
+
+        self.destroy_routing_interfaces()
+
+        super(PhysicalPortTrafficHelper, self).tearDown()
+
+    def portTrafficTest(self):
+        print('portTrafficTest')
+
+        pkt = simple_tcp_packet(eth_dst=ROUTER_MAC,
+                                eth_src='00:22:22:22:22:22',
+                                ip_dst='11.11.11.1',
+                                ip_src='192.168.0.1',
+                                ip_id=105,
+                                ip_ttl=64)
+        exp_pkt = simple_tcp_packet(eth_dst=self.dmac1,
+                                    eth_src=ROUTER_MAC,
+                                    ip_dst='11.11.11.1',
+                                    ip_src='192.168.0.1',
+                                    ip_id=105,
+                                    ip_ttl=63)
+
+        print("Sending packet on port %d with mac %s, forward"
+              % (self.dev_port1, ROUTER_MAC))
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+
+
+@group("draft")
+class PhysicalPortAutoNegAttributeTest(PhysicalPortTrafficHelper):
+    ''' Test auto negation attribute '''
+
+    def setUp(self):
+        print("PhysicalPortAutoNegAttributeTest setUp")
+        super(PhysicalPortAutoNegAttributeTest, self).setUp()
+
+    def runTest(self):
+        self.portAutoNegAttributeTest()
+        self.portTrafficTest()
+
+    def portAutoNegAttributeTest(self):
+        print("PhysicalPortAutoNegAttributeTest")
+
+        # Save default values
+        self.port_def_speed = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    speed=True)['speed']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.port_def_auto_neg_mode = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    auto_neg_mode=True)['auto_neg_mode']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        test_config = []
+        supported_speed = [1000, 10000, 25000]
+        advertised_fec_mode = [SAI_PORT_FEC_MODE_NONE,
+                               SAI_PORT_FEC_MODE_FC,
+                               SAI_PORT_FEC_MODE_RS]
+        advertised_fec_mode_list = sai_thrift_s32_list_t(
+            count=10,
+            int32list=advertised_fec_mode)
+        print(advertised_fec_mode_list)
+
+
+        test_config.append({'speed': 10000,
+                            'autoneg': True,
+                            'supported_speed': supported_speed})
+        test_config.append({'speed': 25000,
+                            'autoneg': True,
+                            'supported_speed': supported_speed})
+
+        # Start the test loop
+        for test in test_config:
+            print("Verify speed: ", test['speed'])
+
+            set_port_speed(self.client, self.port0, test['speed'], verify=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                auto_neg_mode=test['autoneg'])
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+
+            supported_speed_list = sai_thrift_s32_list_t(
+                count=10, int32list=[])
+            advertised_speed_list = sai_thrift_s32_list_t(
+                count=10, int32list=[])
+
+            attr = sai_thrift_get_port_attribute(
+                self.client,
+                self.port0,
+                speed=True,
+                auto_neg_mode=True,
+                supported_speed=supported_speed_list,
+                advertised_speed=advertised_speed_list)
+
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            self.assertEqual(attr['speed'], test['speed'])
+            self.assertIs(attr['auto_neg_mode'], True)
+
+            supported_speed_list = attr['supported_speed']
+            supported_speeds = ""
+            for speed in supported_speed_list.uint32list:
+                supported_speeds += str(speed) + ", "
+            verified_all = True
+            for speed in supported_speed_list.uint32list:
+                # Check if we can set the port supported speed
+                verified = set_port_speed(
+                    self.client,
+                    self.port0,
+                    speed,
+                    verify=True)
+                if verified:
+                    s = "OK"
+                else:
+                    s = "Failed"
+                print(" Verify port supported speed: ",
+                        "%d (suported_speeds=%s) %s"
+                        % (speed, supported_speeds, s))
+                verified_all &= verified
+
+            self.assertTrue(verified_all,
+                            "Failed to verify port supported speeds")
+
+    def tearDown(self):
+        print("PhysicalPortAutoNegAttributeTest tearDown")
+
+        sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                auto_neg_mode=self.port_def_auto_neg_mode)
+
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        set_port_speed(self.client, self.port0, self.port_def_speed, verify=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        super(PhysicalPortAutoNegAttributeTest, self).tearDown()
+
+
+@group("draft")
+class PhysicalPortMtuAttributeTest(PhysicalPortTrafficHelper):
+    ''' Test auto negation attribute '''
+
+    def setUp(self):
+        print("PhysicalPortMtuAttributeTest setUp")
+        super(PhysicalPortMtuAttributeTest, self).setUp()
+
+    def runTest(self):
+        self.portMtuAttributeTest()
+        self.portTrafficTest()
+
+    def portMtuAttributeTest(self):
+        print("PhysicalPortMtuAttributeTest")
+
+        # Save default value
+        self.port_def_mtu = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    mtu=True)['mtu']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        test_mtu = 10000
+        sai_thrift_set_port_attribute(
+            self.client, self.port0, mtu=test_mtu
+        )
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        attr = sai_thrift_get_port_attribute(
+            self.client, self.port0, mtu=True
+        )
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.assertEqual(attr['mtu'], test_mtu)
+
+    def tearDown(self):
+        print("PhysicalPortMtuAttributeTest tearDown")
+
+        sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                mtu=self.port_def_mtu)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        super(PhysicalPortMtuAttributeTest, self).tearDown()
+
+
+@group("draft")
+class PhysicalPortFecModeAttributeTest(PhysicalPortTrafficHelper):
+    ''' Test port fec mode attribute '''
+
+    def setUp(self):
+        print("PhysicalPortFecModeAttributeTest setUp")
+        super(PhysicalPortFecModeAttributeTest, self).setUp()
+
+    def runTest(self):
+        self.portFecModeAttributeTest()
+        self.portTrafficTest()
+
+    def portFecModeAttributeTest(self):
+        print("PhysicalPortFecModeAttributeTest")
+
+        # Save default values
+        self.port_def_speed = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    speed=True)['speed']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.port_def_auto_neg_mode = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    auto_neg_mode=True)['auto_neg_mode']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.port_def_fec_mode = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    fec_mode=True)['fec_mode']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        self.port_def_admin_state = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    admin_state=True)['admin_state']
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+        test_config = []
+        test_config.append({'speed': 10000,
+                            'fec_mode': SAI_PORT_FEC_MODE_NONE,
+                            'transit_fec': SAI_PORT_FEC_MODE_FC,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 10000,
+                            'fec_mode': SAI_PORT_FEC_MODE_FC,
+                            'transit_fec': SAI_PORT_FEC_MODE_NONE,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_NONE,
+                            'transit_fec': SAI_PORT_FEC_MODE_RS,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_NONE,
+                            'transit_fec': SAI_PORT_FEC_MODE_FC,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_RS,
+                            'transit_fec': SAI_PORT_FEC_MODE_FC,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_RS,
+                            'transit_fec': SAI_PORT_FEC_MODE_NONE,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_FC,
+                            'transit_fec': SAI_PORT_FEC_MODE_NONE,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 25000,
+                            'fec_mode': SAI_PORT_FEC_MODE_FC,
+                            'transit_fec': SAI_PORT_FEC_MODE_RS,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 50000,
+                            'fec_mode': SAI_PORT_FEC_MODE_NONE,
+                            'transit_fec': None,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 50000,
+                            'fec_mode': SAI_PORT_FEC_MODE_FC,
+                            'transit_fec': None,
+                            'auto_neg_mode': True})
+        test_config.append({'speed': 50000,
+                            'fec_mode': SAI_PORT_FEC_MODE_RS,
+                            'transit_fec': None,
+                            'auto_neg_mode': True})
+        for test in test_config:
+            if test['transit_fec'] is not None:
+                print("Verify Port speed %d: FEC mode=%s --> FEC mode=%s"
+                        % (test['speed'],
+                            fec_to_str(test['fec_mode']),
+                            fec_to_str(test['transit_fec'])))
+            else:
+                print("Verify Port speed %d: FEC mode=%s"
+                        % (test['speed'], fec_to_str(test['fec_mode'])))
+
+            set_port_speed(self.client, self.port0, test['speed'], verify=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            status = sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                auto_neg_mode=test['autoneg'])
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            status = sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                fec_mode=test['fec_mode'])
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            status = sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                admin_state=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            supported_fec_modes = sai_thrift_u32_list_t(count=10,
+                                                        uint32list=[])
+            print(supported_fec_modes)
+            attr = sai_thrift_get_port_attribute(self.client,
+                                                    self.port0,
+                                                    oper_status=True,
+                                                    speed=True,
+                                                    fec_mode=True,
+                                                    admin_state=True,
+                                                    auto_neg_mode=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            self.assertEqual(attr['speed'], test['speed'])
+            self.assertEqual(attr['fec_mode'], test['fec_mode'])
+            self.assertEqual(attr['auto_neg_mode'], test['auto_neg_mode'])
+            if test['transit_fec'] is not None:
+                sai_thrift_set_port_attribute(
+                    self.client,
+                    self.port0,
+                    fec_mode=test['transit_fec'])
+                self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+                attr = sai_thrift_get_port_attribute(
+                    self.client,
+                    self.port0,
+                    oper_status=True,
+                    speed=True,
+                    fec_mode=True,
+                    admin_state=True,
+                    auto_neg_mode=True)
+                self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+                self.assertEqual(attr['fec_mode'], test['transit_fec'])
+            sai_thrift_set_port_attribute(self.client, self.port0,
+                                            admin_state=False)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            attr = sai_thrift_get_port_attribute(
+                self.client,
+                self.port0,
+                admin_state=True,
+                oper_status=True,
+                speed=True,
+                auto_neg_mode=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            self.assertIs(attr['admin_state'], False)
+
+            sai_thrift_set_port_attribute(self.client, self.port0,
+                                            admin_state=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+
+            attr = sai_thrift_get_port_attribute(self.client, self.port0,
+                                                    admin_state=True,
+                                                    oper_status=True,
+                                                    speed=True,
+                                                    auto_neg_mode=True)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            self.assertIs(attr['admin_state'], True)
+
+    def tearDown(self):
+        print("PhysicalPortFecModeAttributeTest tearDown")
+
+        sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                admin_state=self.port_def_admin_state)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                fec_mode=self.port_def_fec_mode)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        sai_thrift_set_port_attribute(
+                self.client,
+                self.port0,
+                auto_neg_mode=self.port_def_auto_neg_mode)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        set_port_speed(self.client, self.port0, self.port_def_speed, verify=True)
+        self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+        super(PhysicalPortFecModeAttributeTest, self).tearDown()
+
 class PortStatsTrafficTest(SaiHelperSimplified):
     """
     Configuration

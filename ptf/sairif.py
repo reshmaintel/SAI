@@ -1186,6 +1186,336 @@ class RifMyIPTest(L3InterfaceSimplifiedHelper):
 
 
 @group("draft")
+class SwitchMacUpdateTest(L3InterfaceSimplifiedHelper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
+        """
+        Verifies if packet is forwarded correctly after switch MAC address updated
+        and if packet is dropped for old MAC address after update
+        """
+        print("\nSwitchMacUpdateTest()")
+
+        new_router_mac = "00:77:66:55:44:44"
+        rif_mac = "00:77:66:55:44:af"
+        pkt = simple_tcp_packet(eth_dst=ROUTER_MAC,
+                                eth_src='00:22:22:22:22:22',
+                                ip_dst='11.11.11.1',
+                                ip_src='192.168.0.1',
+                                ip_id=105,
+                                ip_ttl=64)
+        exp_pkt = simple_tcp_packet(eth_dst='00:11:22:33:44:55',
+                                    eth_src=ROUTER_MAC,
+                                    ip_dst='11.11.11.1',
+                                    ip_src='192.168.0.1',
+                                    ip_id=105,
+                                    ip_ttl=64)
+        pkt1 = simple_tcp_packet(eth_dst=new_router_mac,
+                                 eth_src='00:22:22:22:22:22',
+                                 ip_dst='11.11.11.1',
+                                 ip_src='192.168.0.1',
+                                 ip_id=105,
+                                 ip_ttl=64)
+        exp_pkt1 = simple_tcp_packet(eth_dst='00:11:22:33:44:55',
+                                     eth_src=new_router_mac,
+                                     ip_dst='11.11.11.1',
+                                     ip_src='192.168.0.1',
+                                     ip_id=105,
+                                     ip_ttl=64)
+        pkt2 = simple_tcp_packet(eth_dst=rif_mac,
+                                 eth_src='00:22:22:22:22:22',
+                                 ip_dst='11.11.11.1',
+                                 ip_src='192.168.0.1',
+                                 ip_id=105,
+                                 ip_ttl=64)
+        exp_pkt2 = simple_tcp_packet(eth_dst='00:11:22:33:44:55',
+                                     eth_src=new_router_mac,
+                                     ip_dst='11.11.11.1',
+                                     ip_src='192.168.0.1',
+                                     ip_id=105,
+                                     ip_ttl=64)
+
+        print("Sending packet on port %d with mac %s, forward"
+              % (self.dev_port1, ROUTER_MAC))
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+
+        try:
+            print("Updating switch src_mac_address to %s" % (new_router_mac))
+            sai_thrift_set_switch_attribute(
+                self.client, src_mac_address=new_router_mac)
+            attrs = sai_thrift_get_switch_attribute(
+                self.client, src_mac_address=True)
+            self.assertEqual(attrs["src_mac_address"], new_router_mac)
+            print("Sending packet on port %d with mac %s, dropped"
+                % (self.dev_port1, ROUTER_MAC))
+            send_packet(self, self.dev_port1, pkt)
+            verify_no_other_packets(self, timeout=1)
+
+            print("Sending packet on port %d with mac %s, forward"
+                % (self.dev_port1, new_router_mac))
+            send_packet(self, self.dev_port1, pkt1)
+            verify_packet(self, exp_pkt1, self.dev_port0)
+
+            print("Updating RIF src_mac_address to %s" % (rif_mac))
+            sai_thrift_set_router_interface_attribute(
+                self.client, self.port1_rif, src_mac_address=rif_mac)
+            attrs = sai_thrift_get_router_interface_attribute(
+                self.client, self.port1_rif, src_mac_address=True)
+            self.assertEqual(attrs["src_mac_address"], rif_mac)
+            # still forwarded since destination MAC is same as switch MAC
+            print("Sending packet on port %d with mac %s, forwarded"
+                % (self.dev_port1, new_router_mac))
+            send_packet(self, self.dev_port1, pkt1)
+            verify_packet(self, exp_pkt1, self.dev_port0)
+
+            print("Sending packet on port %d with mac %s, forward"
+                % (self.dev_port1, rif_mac))
+            send_packet(self, self.dev_port1, pkt2)
+            verify_packet(self, exp_pkt2, self.dev_port0)
+
+            print("Reverting RIF src_mac_address to %s" % (new_router_mac))
+            sai_thrift_set_router_interface_attribute(
+                self.client, self.port1_rif, src_mac_address=new_router_mac)
+            attrs = sai_thrift_get_router_interface_attribute(
+                self.client, self.port1_rif, src_mac_address=True)
+            self.assertEqual(attrs["src_mac_address"], new_router_mac)
+            print("Sending packet on port %d with mac %s, dropped"
+                % (self.dev_port1, rif_mac))
+            send_packet(self, self.dev_port1, pkt2)
+            verify_no_other_packets(self, timeout=1)
+
+            print("Sending packet on port %d with mac %s, forward"
+                % (self.dev_port1, new_router_mac))
+            send_packet(self, self.dev_port1, pkt1)
+            verify_packet(self, exp_pkt1, self.dev_port0)
+
+            print("Reverting switch src_mac_address to %s" % (ROUTER_MAC))
+            sai_thrift_set_switch_attribute(
+                self.client, src_mac_address=ROUTER_MAC)
+            attrs = sai_thrift_get_switch_attribute(
+                self.client, src_mac_address=True)
+            self.assertEqual(attrs["src_mac_address"], ROUTER_MAC)
+            print("Sending packet on port %d with mac %s, dropped"
+                % (self.dev_port1, new_router_mac))
+            send_packet(self, self.dev_port1, pkt1)
+            verify_no_other_packets(self, timeout=1)
+
+            print("Sending packet on port %d with mac %s, forward"
+                % (self.dev_port1, ROUTER_MAC))
+            send_packet(self, self.dev_port1, pkt)
+            verify_packet(self, exp_pkt, self.dev_port0)
+        finally:
+            sai_thrift_set_switch_attribute(
+                self.client, src_mac_address=ROUTER_MAC)
+
+
+@group("draft")
+class L3InterfaceSimplifiedIpv6Helper(SaiHelperSimplified):
+    """
+    Configuration
+    +----------+-----------+
+    | port0    | port0_rif |
+    +----------+-----------+
+    | port1    | port1_rif |
+    +----------+-----------+
+    """
+    def setUp(self):
+        super(L3InterfaceSimplifiedHelper, self).setUp()
+
+        dmac1 = '00:11:22:33:44:55'
+
+        self.create_routing_interfaces(ports=[0, 1])
+        self.port1_rif_counter_in = 0
+        self.port0_rif_counter_out = 0
+
+        self.nhop1 = sai_thrift_create_next_hop(
+            self.client,
+            ip=sai_ipaddress('1234:5678:9abc:def0:4422:1133:5577:99ab'),
+            router_interface_id=self.port0_rif,
+            type=SAI_NEXT_HOP_TYPE_IP)
+        self.neighbor_entry1 = sai_thrift_neighbor_entry_t(
+            rif_id=self.port0_rif, ip_address=sai_ipaddress('1234:5678:9abc:def0:4422:1133:5577:99ab'))
+        sai_thrift_create_neighbor_entry(
+            self.client, self.neighbor_entry1, dst_mac_address=dmac1)
+
+        self.route_entry1 = sai_thrift_route_entry_t(
+            vr_id=self.default_vrf,
+            destination=sai_ipprefix(
+                '1234:5678:9abc:def0:4422:1133:5577:99aa/128'))
+        sai_thrift_create_route_entry(
+            self.client, self.route_entry1, next_hop_id=self.nhop1)
+
+        self.route_entry1_lpm = sai_thrift_route_entry_t(
+            vr_id=self.default_vrf, destination=sai_ipprefix('4000::0/65'))
+        sai_thrift_create_route_entry(
+            self.client, self.route_entry1_lpm, next_hop_id=self.nhop1)
+
+    def tearDown(self):
+        sai_thrift_remove_route_entry(self.client, self.route_entry1)
+        sai_thrift_remove_route_entry(self.client, self.route_entry_lpm)
+
+        sai_thrift_remove_next_hop(self.client, self.nhop1)
+        sai_thrift_remove_neighbor_entry(self.client, self.neighbor_entry1)
+
+        self.destroy_routing_interfaces()
+
+        super(L3InterfaceSimplifiedHelper, self).tearDown()
+
+
+@group("draft")
+class Ipv6DisableTest(L3InterfaceSimplifiedIpv6Helper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
+        """
+        Verifies if IPv6 packets are dropped when admin_v6_state is False
+        """
+        print("\nIpv6DisableTest()")
+
+        pkt = simple_tcpv6_packet(
+            eth_dst=ROUTER_MAC,
+            eth_src='00:22:22:22:22:22',
+            ipv6_dst='1234:5678:9abc:def0:4422:1133:5577:99aa',
+            ipv6_src='2000::1',
+            ipv6_hlim=64)
+        exp_pkt = simple_tcpv6_packet(
+            eth_dst='00:11:22:33:44:55',
+            eth_src=ROUTER_MAC,
+            ipv6_dst='1234:5678:9abc:def0:4422:1133:5577:99aa',
+            ipv6_src='2000::1',
+            ipv6_hlim=63)
+
+        print("Sending packet on port %d, forward" % self.dev_port1)
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+        self.port1_rif_counter_in += 1
+        self.port0_rif_counter_out += 1
+
+        print("Disable IPv6 on ingress RIF")
+        sai_thrift_set_router_interface_attribute(
+            self.client, self.port1_rif, admin_v6_state=False)
+        initial_stats = sai_thrift_get_port_stats(self.client, self.port1)
+        if_in_discards_pre = initial_stats['SAI_PORT_STAT_IF_IN_DISCARDS']
+
+        print("Sending packet on port %d, discard" % self.dev_port1)
+        send_packet(self, self.dev_port1, pkt)
+        verify_no_other_packets(self, timeout=1)
+        stats = sai_thrift_get_port_stats(self.client, self.port1)
+        if_in_discards = stats['SAI_PORT_STAT_IF_IN_DISCARDS']
+        self.assertTrue(if_in_discards_pre + 1 == if_in_discards)
+        self.port1_rif_counter_in += 1
+
+        print("Enable IPv6 on ingress RIF")
+        sai_thrift_set_router_interface_attribute(
+            self.client, self.port1_rif, admin_v6_state=True)
+
+        print("Sending packet on port %d, forward" % self.dev_port1)
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+        self.port1_rif_counter_in += 1
+        self.port0_rif_counter_out += 1
+
+        print("\nrifStats")
+        time.sleep(4)
+        port0_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port0_rif)
+        port1_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port1_rif)
+        # self.assertTrue(self.port0_rif_counter_out == port0_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_OUT_PACKETS'])
+        # self.assertTrue(self.port1_rif_counter_in == port1_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_IN_PACKETS'])
+
+
+@group("draft")
+class Ipv6FibLpmTest(L3InterfaceSimplifiedIpv6Helper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
+        """
+        Verifies basic forwarding for IPv6 LPM route
+        """
+        print("\nIpv6FibLpmTest()")
+
+        pkt = simple_tcpv6_packet(eth_dst=ROUTER_MAC,
+                                  eth_src='00:22:22:22:22:22',
+                                  ipv6_dst='4000::1',
+                                  ipv6_src='2000::1',
+                                  ipv6_hlim=64)
+        exp_pkt = simple_tcpv6_packet(eth_dst='00:11:22:33:44:55',
+                                      eth_src=ROUTER_MAC,
+                                      ipv6_dst='4000::1',
+                                      ipv6_src='2000::1',
+                                      ipv6_hlim=63)
+
+        print("Sending packet port %d -> port %d (2000::1 -> 4000::1) "
+              "LPM entry 4000::0/65" % (self.dev_port1, self.dev_port0))
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+        self.port1_rif_counter_in += 1
+        self.port0_rif_counter_out += 1
+
+        print("\nrifStats")
+        time.sleep(4)
+        port0_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port0_rif)
+        port1_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port1_rif)
+        # self.assertTrue(self.port0_rif_counter_out == port0_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_OUT_PACKETS'])
+        # self.assertTrue(self.port1_rif_counter_in == port1_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_IN_PACKETS'])
+
+
+@group("draft")
+class Ipv6FibTest(L3InterfaceSimplifiedIpv6Helper):
+    """
+    Test run on two ports
+    """
+    def runTest(self):
+        """
+        Verifies basic forwarding for IPv6 host
+        """
+        print("\nIpv6FibTest()")
+
+        pkt = simple_tcpv6_packet(
+            eth_dst=ROUTER_MAC,
+            eth_src='00:22:22:22:22:22',
+            ipv6_dst='1234:5678:9abc:def0:4422:1133:5577:99aa',
+            ipv6_src='2000::1',
+            ipv6_hlim=64)
+        exp_pkt = simple_tcpv6_packet(
+            eth_dst='00:11:22:33:44:55',
+            eth_src=ROUTER_MAC,
+            ipv6_dst='1234:5678:9abc:def0:4422:1133:5577:99aa',
+            ipv6_src='2000::1',
+            ipv6_hlim=63)
+
+        print("Sending packet port %d -> port %d (2000::1 -> "
+              "1234:5678:9abc:def0:4422:1133:5577:99aa)"
+              % (self.dev_port1, self.dev_port0))
+        send_packet(self, self.dev_port1, pkt)
+        verify_packet(self, exp_pkt, self.dev_port0)
+        self.port1_rif_counter_in += 1
+        self.port0_rif_counter_out += 1
+
+        print("\nrifStats")
+        time.sleep(4)
+        port0_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port0_rif)
+        port1_rif_stats = sai_thrift_get_router_interface_stats(
+            self.client, self.port1_rif)
+        # self.assertTrue(self.port0_rif_counter_out == port0_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_OUT_PACKETS'])
+        # self.assertTrue(self.port1_rif_counter_in == port1_rif_stats[
+        #     'SAI_ROUTER_INTERFACE_STAT_IN_PACKETS'])
+
+
+@group("draft")
 class L3InterfaceAclTest(SaiHelperSimplified):
     """
     Configuration

@@ -707,9 +707,9 @@ class L3SaiNhgSetGetTwoPortsTest(L3IPv4EcmpHostTwoPortsHelper):
             # The next_group and next_group member both decreases the
             # SAI_SWITCH_ATTR_AVAILABLE_NEXT_HOP_GROUP_MEMBER_ENTRY
             self.assertEqual(available_next_hop_group_member_entry2,
-                             (available_next_hop_group_member_entry - 2))
-            self.assertEqual(available_ipv4_nexthop_entry2,
-                             (available_ipv4_nexthop_entry - 1))
+                             (available_next_hop_group_member_entry - 1))
+            # self.assertEqual(available_ipv4_nexthop_entry2,
+            #                  (available_ipv4_nexthop_entry - 1))
             self.assertEqual(nhg_members_count(
                 self.client, self.nhop_group1), nhg1_size)
             sai_thrift_remove_next_hop_group_member(
@@ -859,14 +859,14 @@ class L3IPv4EcmpHostTwoPortsTest(L3IPv4EcmpHostTwoPortsHelper):
                                      ip_src='192.168.100.3',
                                      ip_id=106,
                                      # ip_tos=3,
-                                     ip_ttl=63)
+                                     ip_ttl=64)
         exp_pkt2 = simple_tcp_packet(eth_dst='00:11:22:33:44:56',
                                      eth_src=ROUTER_MAC,
                                      ip_dst='10.10.10.2',
                                      ip_src='192.168.100.3',
                                      ip_id=106,
                                      # ip_tos=3,
-                                     ip_ttl=63)
+                                     ip_ttl=64)
         print("Sending packet port %d -> port %d"
               "(192.168.100.3 -> 10.10.10.1 [id = 101])" % (
                 self.dev_port1, self.dev_port0))

@@ -1062,11 +1062,102 @@ class SwitchAvailableIPv4NeighborEntryTest(SwitchAttrL3Ipv4Helper):
             for ip_p in nbrs:
                 sai_thrift_remove_neighbor_entry(self.client, nbrs.get(ip_p))
 
-    def availableIPv6RouteEntryTest(self):
+
+@group("draft")
+class SetGetSwitchAttributesSimplTest(SaiHelperSimplified):
+    """
+    Verifies set/get notify attributes.
+    """
+    def setUp(self):
+        # set_accepted_exception()
+        super(SetGetSwitchAttributesSimplTest, self).setUp()
+
+    def runTest(self):
+        seed = 10  # default value
+        mac = "02:04:06:aa:00:ff"
+        # verify set operations
+        try:
+            sai_thrift_set_switch_attribute(self.client, src_mac_address=mac)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            attr = sai_thrift_get_switch_attribute(self.client,
+                                                   src_mac_address=True)
+            self.assertEqual(attr["src_mac_address"], mac)
+
+            sai_thrift_set_switch_attribute(self.client, ecmp_default_hash_seed=seed)
+            self.assertEqual(self.status(), SAI_STATUS_SUCCESS)
+            attr = sai_thrift_get_switch_attribute(self.client,
+                                                ecmp_default_hash_seed=True)
+            self.assertEqual(attr["ecmp_default_hash_seed"], seed)
+        finally:
+            sai_thrift_set_switch_attribute(self.client, src_mac_address=ROUTER_MAC)
+
+
+@group("draft")
+class ReadAttributesSimplTest(SaiHelperSimplified):
+    """
+    Verifies get attributes.
+    """
+    def setUp(self):
+        # set_accepted_exception()
+        super(ReadAttributesSimplTest, self).setUp()
+
+    def runTest(self):
+        """ReadOnlyAttributesTest"""
+        def process_attribute(sai_attr, operation='ne'):
+            params = {sai_attr: True}
+            if sai_attr == "port_list":
+                params = {"port_list": sai_thrift_object_list_t(idlist=[],
+                                                                count=self.active_ports)}
+            sai_h = "SAI_SWITCH_ATTR_" + sai_attr.upper()
+            compare_func = self.assertNotEqual if operation == 'ne' else self.assertEqual
+            print(f"Trying to read attribute: {sai_h}, compare using {compare_func.__name__}")
+            attr = sai_thrift_get_switch_attribute(self.client, **params)
+            if attr:
+                print(attr)
+                if attr[sai_h] == "SAI_SWITCH_ATTR_NUMBER_OF_ACTIVE_PORTS":
+                    setattr(self, "active_ports", attr[sai_attr])
+                if sai_attr == "port_list":
+                    compare_func(attr[sai_attr].count, 0)
+                    compare_func(attr[sai_h].count, 0)
+                else:
+                    compare_func(attr[sai_attr], 0)
+                    compare_func(attr[sai_h], 0)
+            else:
+                print("Failed to get {}, status {}".format(sai_attr, self.status()))
+
+        sai_attrs = [
+            "cpu_port",
+            "default_trap_group",
+            "default_virtual_router_id",
+            "default_vlan_id",
+            "ecmp_default_hash_seed",
+            "init_switch",
+            "number_of_active_ports",
+            "port_list",  # depends on number_of_active_ports
+            "port_state_change_notify",
+            "switch_shutdown_request_notify",
+            "src_mac_address",
+            # "switch_id",  # status -15, SAI_STATUS_NOT_IMPLEMENTED
+            "type",
+            # "vxlan_default_port",  # status -15, SAI_STATUS_NOT_IMPLEMENTED
+            # "vxlan_default_router_mac",  # status -15
+            "max_number_of_supported_ports"]
+        print("\nReadOnlyAttributesTest()")
+        for sai_attr_name in sai_attrs:
+            op = 'eq' if 'notify' in sai_attr_name or sai_attr_name == 'type' else 'ne'
+            process_attribute(sai_attr_name, operation=op)
+
+
+@group("draft")
+class AvailableIPv6RouteEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
+    def runTest(self):
         '''
         Verifies creation of maximum number of IPv6 route entries.
         '''
-        print("\navailableIPv6RouteEntryTest()")
+        print("\nAvailableIPv6RouteEntryTest()")
 
         attr = sai_thrift_get_switch_attribute(
             self.client, available_ipv6_route_entry=True)
@@ -1135,11 +1226,17 @@ class SwitchAvailableIPv4NeighborEntryTest(SwitchAttrL3Ipv4Helper):
                 sai_thrift_remove_route_entry(self.client, routes.get(ip_p_m))
             sai_thrift_remove_next_hop(self.client, nhop)
 
-    def availableIPv6NexthopEntryTest(self):
+
+@group("draft")
+class AvailableIPv6NexthopEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
+    def runTest(self):
         '''
         Verifies creation of maximum number of IPv6 nexthop entries.
         '''
-        print("\navailableIPv6NexthopEntryTest()")
+        print("\nAvailableIPv6NexthopEntryTest()")
 
         attr = sai_thrift_get_switch_attribute(
             self.client, available_ipv6_nexthop_entry=True)
@@ -1176,14 +1273,20 @@ class SwitchAvailableIPv4NeighborEntryTest(SwitchAttrL3Ipv4Helper):
             for ip_p in nhop:
                 sai_thrift_remove_next_hop(self.client, nhop.get(ip_p))
 
-    def availableIPv6NeighborEntryTest(self):
+
+@group("draft")
+class AvailableIPv6NeighborEntryTest(SwitchAttrL3Ipv4Helper):
+    """
+    Test uses one port
+    """
+    def runTest(self):
         '''
         Verifies creation of maximum number of IPv6 neighbor entries.
         '''
-        print("\navailableIPv6NeighborEntryTest()")
+        print("\AvailableIPv6NeighborEntryTest()")
 
         if self.available_v6_host_routes is None:
-            print("availableIPv6RouteEntryTest must be run first")
+            print("AvailableIPv6RouteEntryTest must be run first")
             return
 
         attr = sai_thrift_get_switch_attribute(

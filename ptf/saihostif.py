@@ -2975,3 +2975,145 @@ class HostifTrapActionGetterTest(SaiHelperSimplified):
         finally:
             sai_thrift_remove_hostif_trap(self.client, ip2me_trap)
             sai_thrift_remove_hostif_trap(self.client, dhcp_trap)
+
+
+@group("draft")
+class HostIfOperStatusTest(SaiHelperSimplified):
+    '''
+    - This verifies the correctness of host interface creation
+      with object type Port and setting the oper status.
+    - Updating the oper status
+    - The test verifies also if management packets are passed to ports host
+      interfaces after hostif table wildcard entry creation.
+    '''
+    def setUp(self):
+        super(HostIfOperStatusTest, self).setUp()
+
+    def runTest(self):
+        print("\nHosIfOperStatusTest()")
+
+        hostif1_port = self.port0
+        hostif1_dev_port = self.dev_port0
+        hostif1_name = "hostif1"
+
+        hostif2_port = self.port1
+        hostif2_dev_port = self.dev_port1
+        hostif2_name = "hostif2"
+
+        lldp_mac = "01:80:c2:00:00:0e"
+        lldp_pkt = simple_eth_packet(eth_dst=lldp_mac,
+                                     pktlen=100,
+                                     eth_type=0x88cc)
+
+        try:
+            print("creating host interface with oper_status as False")
+            hostif1 = sai_thrift_create_hostif(self.client,
+                                               name=hostif1_name,
+                                               obj_id=hostif1_port,
+                                               oper_status=False,
+                                               type=SAI_HOSTIF_TYPE_NETDEV)
+            self.assertTrue(hostif1 != 0)
+            hostif2 = sai_thrift_create_hostif(self.client,
+                                               name=hostif2_name,
+                                               obj_id=hostif2_port,
+                                               oper_status=False,
+                                               type=SAI_HOSTIF_TYPE_NETDEV)
+            self.assertTrue(hostif2 != 0)
+
+            hostif1_attr = sai_thrift_get_hostif_attribute(self.client,
+                                                           hostif1,
+                                                           oper_status=True)
+
+            hostif2_attr = sai_thrift_get_hostif_attribute(self.client,
+                                                           hostif2,
+                                                           oper_status=True)
+
+            print("Retrieving host interface staus:")
+            print("hostif1_oper_status: ",
+                  hostif1_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+            self.assertFalse(hostif1_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+
+            print("hostif2_oper_status: ",
+                  hostif2_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+            self.assertFalse(hostif2_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+
+            print("Setting host interface with oper_status as True")
+            sai_thrift_set_hostif_attribute(self.client,
+                                            hostif1,
+                                            oper_status=True)
+
+            sai_thrift_set_hostif_attribute(self.client,
+                                            hostif2,
+                                            oper_status=True)
+
+            hostif1_attr = sai_thrift_get_hostif_attribute(self.client,
+                                                           hostif1,
+                                                           oper_status=True)
+
+            hostif2_attr = sai_thrift_get_hostif_attribute(self.client,
+                                                           hostif2,
+                                                           oper_status=True)
+
+            print("Retrieving host interface staus:")
+            print("hostif1_oper_status: ",
+                  hostif1_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+            self.assertTrue(hostif1_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+
+            print("hostif2_oper_status: ",
+                  hostif2_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+            self.assertTrue(hostif2_attr['SAI_HOSTIF_ATTR_OPER_STATUS'])
+
+            hif1_socket = open_packet_socket(hostif1_name)
+            hif2_socket = open_packet_socket(hostif2_name)
+
+            lldp_trap = sai_thrift_create_hostif_trap(
+                self.client,
+                packet_action=SAI_PACKET_ACTION_TRAP,
+                trap_type=SAI_HOSTIF_TRAP_TYPE_LLDP)
+            self.assertTrue(lldp_trap != 0)
+
+            channel = SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_NETDEV_PHYSICAL_PORT
+            hif_tbl_entry = sai_thrift_create_hostif_table_entry(
+                self.client,
+                channel_type=channel,
+                type=SAI_HOSTIF_TABLE_ENTRY_TYPE_WILDCARD)
+            self.assertTrue(hif_tbl_entry != 0)
+
+            pre_stats = query_counter(
+                    self, sai_thrift_get_queue_stats, self.cpu_queue0)
+
+            print("Sending LLDP packet on port %d" % hostif1_dev_port)
+            send_packet(self, hostif1_dev_port, lldp_pkt)
+
+            print("Verifying LLDP packet on port host interface")
+            self.assertTrue(socket_verify_packet(lldp_pkt, hif1_socket))
+            print("\tOK")
+
+            print("Sending LLDP packet on port %d" % hostif2_dev_port)
+            send_packet(self, hostif2_dev_port, lldp_pkt)
+
+            print("Verifying LLDP packet on port host interface")
+            self.assertTrue(socket_verify_packet(lldp_pkt, hif2_socket))
+            print("\tOK")
+
+            print("Verifying CPU port queue stats")
+            time.sleep(4)
+            post_stats = query_counter(
+                    self, sai_thrift_get_queue_stats, self.cpu_queue0)
+            self.assertEqual(
+                post_stats["SAI_QUEUE_STAT_PACKETS"],
+                pre_stats["SAI_QUEUE_STAT_PACKETS"] + 2)
+            print("\tOK")
+
+            print("\tVerification complete")
+
+        finally:
+            sai_thrift_remove_hostif_table_entry(self.client, hif_tbl_entry)
+            sai_thrift_remove_hostif_trap(self.client, lldp_trap)
+            sai_thrift_remove_hostif(self.client, hostif1)
+            sai_thrift_remove_hostif(self.client, hostif2)
+
+    def tearDown(self):
+        sai_thrift_flush_fdb_entries(self.client,
+                                     entry_type=SAI_FDB_FLUSH_ENTRY_TYPE_ALL)
+        super(HostIfOperStatusTest, self).tearDown()

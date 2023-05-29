@@ -276,23 +276,25 @@ class SaiHelperBase(ThriftInterfaceDataPlane):
 
         """
         #TODO move this function to CommonSaiHelper
-        attr = sai_thrift_get_port_attribute(self.client,
-                                             self.cpu_port_hdl,
-                                             qos_number_of_queues=True)
-        num_queues = attr['qos_number_of_queues']
-        q_list = sai_thrift_object_list_t(count=num_queues)
-        attr = sai_thrift_get_port_attribute(self.client,
-                                             self.cpu_port_hdl,
-                                             qos_queue_list=q_list)
-        for queue in range(0, num_queues):
-            queue_id = attr['qos_queue_list'].idlist[queue]
-            setattr(self, 'cpu_queue%s' % queue, queue_id)
-            q_attr = sai_thrift_get_queue_attribute(
-                self.client,
-                queue_id,
-                port=True,
-                index=True,
-                parent_scheduler_node=True)
+        #TODO uncomment after CPU port will implemented
+        pass
+        # attr = sai_thrift_get_port_attribute(self.client,
+        #                                      self.cpu_port_hdl,
+        #                                      qos_number_of_queues=True)
+        # num_queues = attr['qos_number_of_queues']
+        # q_list = sai_thrift_object_list_t(count=num_queues)
+        # attr = sai_thrift_get_port_attribute(self.client,
+        #                                      self.cpu_port_hdl,
+        #                                      qos_queue_list=q_list)
+        # for queue in range(0, num_queues):
+        #     queue_id = attr['qos_queue_list'].idlist[queue]
+        #     setattr(self, 'cpu_queue%s' % queue, queue_id)
+        #     q_attr = sai_thrift_get_queue_attribute(
+        #         self.client,
+        #         queue_id,
+        #         port=True,
+        #         index=True,
+        #         parent_scheduler_node=True)
             # self.assertEqual(queue, q_attr['index'])
             # self.assertEqual(self.cpu_port_hdl, q_attr['port'])
 
